@@ -9,6 +9,7 @@ export function AppShell({
   addOpen,
   onAdd,
   onAddClose,
+  onAddMedication,
   children,
   headerAction,
 }: {
@@ -17,6 +18,7 @@ export function AppShell({
   addOpen: boolean
   onAdd: () => void
   onAddClose: () => void
+  onAddMedication: () => void
   children: ReactNode
   headerAction?: ReactNode
 }) {
@@ -33,7 +35,7 @@ export function AppShell({
         {headerAction}
       </header>
       <main className="mx-auto max-w-xl px-5 pb-32 pt-4">{children}</main>
-      <QuickAddSheet open={addOpen} onClose={onAddClose} />
+      <QuickAddSheet open={addOpen} onClose={onAddClose} onAddMedication={onAddMedication} />
       <BottomNavigation tab={tab} onChange={onTab} onAdd={onAdd} />
     </div>
   )

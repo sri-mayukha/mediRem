@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { clearAllLocalData } from '../db/database'
+import { clearAllLocalData, db } from '../db/database'
 import { DEFAULT_SETTINGS, type useSettings } from '../db/settings'
 
 type SettingsApi = ReturnType<typeof useSettings>
@@ -114,7 +114,6 @@ export function SettingsScreen({ api }: { api: SettingsApi }) {
 }
 
 async function exportJson() {
-  const { db } = await import('../db/database')
   const data = {
     exportedAt: new Date().toISOString(),
     medications: await db.medications.toArray(),

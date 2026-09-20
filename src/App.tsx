@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { AppShell } from './components/AppShell'
 import { useSettings } from './db/settings'
+import { useReminders } from './notifications/useReminders'
 import { HealthScreen } from './screens/HealthScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
 import { MedicinesScreen } from './screens/MedicinesScreen'
@@ -11,7 +12,24 @@ import type { TabId } from './types'
 export default function App() {
   const [tab, setTab] = useState<TabId>('today')
   const [addOpen, setAddOpen] = useState(false)
+  const [tick, setTick] = useState(0)
+  const [addSignal, setAddSignal] = useState(0)
+  const [openMedId, setOpenMedId] = useState<string | null>(null)
   const settingsApi = useSettings()
+
+  const bump = useCallback(() => setTick((t) => t + 1), [])
+  const reminders = useReminders(settingsApi.settings, bump)
+
+  const goAddMedication = useCallback(() => {
+    setOpenMedId(null)
+    setTab('medicines')
+    setAddSignal((s) => s + 1)
+  }, [])
+
+  const openMed = useCallback((id: string) => {
+    setOpenMedId(id)
+    setTab('medicines')
+  }, [])
 
   return (
     <AppShell
@@ -20,6 +38,7 @@ export default function App() {
       addOpen={addOpen}
       onAdd={() => setAddOpen(true)}
       onAddClose={() => setAddOpen(false)}
+      onAddMedication={goAddMedication}
       headerAction={
         tab !== 'settings' ? (
           <button
@@ -34,10 +53,20 @@ export default function App() {
         ) : undefined
       }
     >
-      {tab === 'today' ? <TodayScreen onAdd={() => setAddOpen(true)} /> : null}
-      {tab === 'medicines' ? <MedicinesScreen onAdd={() => setAddOpen(true)} /> : null}
+      {tab === 'today' ? (
+        <TodayScreen settings={settingsApi.settings} reminders={reminders} tick={tick} onAdd={goAddMedication} onOpenMed={openMed} />
+      ) : null}
+      {tab === 'medicines' ? (
+        <MedicinesScreen
+          tick={tick}
+          onChanged={bump}
+          externalOpenId={openMedId}
+          onClearExternal={() => setOpenMedId(null)}
+          addSignal={addSignal}
+        />
+      ) : null}
       {tab === 'health' ? <HealthScreen /> : null}
-      {tab === 'history' ? <HistoryScreen /> : null}
+      {tab === 'history' ? <HistoryScreen tick={tick} onChanged={bump} /> : null}
       {tab === 'settings' ? <SettingsScreen api={settingsApi} /> : null}
     </AppShell>
   )

@@ -1,7 +1,14 @@
 import { useEffect } from 'react'
 
-/** Minimal bottom-sheet for Phase 0 +Add. Full QuickAdd forms land in Phase 1/2. */
-export function QuickAddSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function QuickAddSheet({
+  open,
+  onClose,
+  onAddMedication,
+}: {
+  open: boolean
+  onClose: () => void
+  onAddMedication: () => void
+}) {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -12,13 +19,6 @@ export function QuickAddSheet({ open, onClose }: { open: boolean; onClose: () =>
   }, [open, onClose])
 
   if (!open) return null
-  const items = [
-    'Add medication (Phase 1)',
-    'Record blood pressure (Phase 2)',
-    'Record glucose (Phase 2)',
-    'Record weight (Phase 2)',
-    'Record symptom (Phase 2)',
-  ]
   return (
     <div role="dialog" aria-modal="true" aria-label="Quick add" className="fixed inset-0 z-30" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" aria-hidden="true" />
@@ -29,9 +29,21 @@ export function QuickAddSheet({ open, onClose }: { open: boolean; onClose: () =>
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full" style={{ background: 'var(--mr-border)' }} />
         <h2 className="mr-h2">Quick add</h2>
-        <p className="mr-muted mr-body mt-1">Common actions take very few taps. Full forms arrive in Phase 1–2.</p>
+        <p className="mr-muted mr-body mt-1">Common actions take very few taps.</p>
         <ul className="mt-4 space-y-2">
-          {items.map((label) => (
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                onClose()
+                onAddMedication()
+              }}
+              className="mr-btn-primary w-full px-4 py-3"
+            >
+              + Add medication
+            </button>
+          </li>
+          {['Record blood pressure (Phase 2)', 'Record glucose (Phase 2)', 'Record weight (Phase 2)', 'Record symptom (Phase 2)'].map((label) => (
             <li key={label}>
               <button type="button" disabled className="w-full rounded-2xl border px-4 py-3 text-left opacity-60" style={{ borderColor: 'var(--mr-border)' }}>
                 {label}
@@ -39,7 +51,7 @@ export function QuickAddSheet({ open, onClose }: { open: boolean; onClose: () =>
             </li>
           ))}
         </ul>
-        <button type="button" onClick={onClose} className="mr-btn-primary mt-5 w-full px-4 py-3">
+        <button type="button" onClick={onClose} className="mt-3 w-full rounded-full border px-4 py-3 font-semibold" style={{ borderColor: 'var(--mr-border)' }}>
           Close
         </button>
       </div>
