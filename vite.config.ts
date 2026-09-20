@@ -5,6 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Project site serves under /<repo>/ — required for correct asset URLs on GitHub Pages.
+  base: '/mediRem/',
   plugins: [
     react(),
     tailwindcss(),
@@ -15,8 +17,8 @@ export default defineConfig({
         name: 'mediRem — Your medication, on time.',
         short_name: 'mediRem',
         description: 'Privacy-first, offline-first medication reminders and health tracking. Data stays on this device.',
-        start_url: '/',
-        scope: '/',
+        start_url: './',
+        scope: './',
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#FAF8F4',

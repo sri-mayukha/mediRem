@@ -29,7 +29,7 @@ export function AppShell({
       <a href="#main-content" className="mr-skip">Skip to content</a>
       <header className="mx-auto flex max-w-xl items-center justify-between px-5 pt-6">
         <div className="flex items-center gap-2.5">
-          <img src="/favicon.svg" alt="" width={32} height={32} className="rounded-lg" />
+          <img src="favicon.svg" alt="" width={32} height={32} className="rounded-lg" />
           <div>
             <p className="text-[17px] font-bold leading-none">mediRem</p>
             <p className="mr-muted text-xs">Your medication, on time.</p>

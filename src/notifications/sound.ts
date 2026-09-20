@@ -66,8 +66,9 @@ export async function systemNotify(title: string, body: string, tag: string): Pr
       await reg.showNotification(title, {
         body,
         tag,
-        icon: '/icons/icon-192.svg',
-        badge: '/icons/icon-192.svg',
+        // Relative so icons resolve under the Pages subpath (/mediRem/) as well as root.
+        icon: 'icons/icon-192.svg',
+        badge: 'icons/icon-192.svg',
         vibrate: [80, 60, 60, 60, 120],
         data: { tag },
         ...({ actions: [{ action: 'taken', title: 'Taken' }, { action: 'snooze', title: 'Snooze' }, { action: 'open', title: 'Open' }] } as object),
@@ -75,7 +76,7 @@ export async function systemNotify(title: string, body: string, tag: string): Pr
       return 'system'
     }
     // Foreground fallback tab notification
-    const n = new Notification(title, { body, tag, icon: '/icons/icon-192.svg' })
+    const n = new Notification(title, { body, tag, icon: 'icons/icon-192.svg' })
     n.onclick = () => window.focus()
     return 'system'
   } catch {
