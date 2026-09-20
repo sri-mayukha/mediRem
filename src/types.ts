@@ -57,6 +57,8 @@ export interface MedicationDoseEvent {
   status: DoseStatus
   takenAt?: number
   snoozedUntil?: number
+  /** Guard against uncontrolled snooze loops (cap enforced in snoozeEvent). */
+  snoozeCount?: number
   note?: string
 }
 
@@ -72,11 +74,20 @@ export interface MedicationRefill {
 export type TrackerKey =
   | 'bp' | 'glucose' | 'weight' | 'hr' | 'spo2' | 'temp' | 'period' | 'symptom' | 'custom'
 
+export interface CustomFieldDef {
+  name: string
+  label: string
+  kind: 'number' | 'text' | 'severity10' | 'quality5' | 'time' | 'date'
+  unit?: string
+}
+
 export interface HealthTracker {
   id: string
   key: TrackerKey
   name: string
   unit?: string
+  /** Only for custom trackers: user-defined schema. Built-ins use fixed forms. */
+  fieldsSchema?: CustomFieldDef[]
   active: boolean
   createdAt: number
 }

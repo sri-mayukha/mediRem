@@ -142,10 +142,26 @@ export async function markSkipped(eventId: string, note?: string): Promise<void>
   await db.doseEvents.put({ ...e, status: 'skipped', note: note ?? e.note })
 }
 
-export async function snoozeEvent(eventId: string, snoozeMinutes: number): Promise<void> {
+/** Max consecutive snoozes per dose — avoids uncontrolled notification loops (spec §27). */
+export const MAX_SNOOZES = 5
+
+/** Pure guard, unit-tested. */
+export function snoozeAllowed(count: number | undefined): boolean {
+  return (count ?? 0) < MAX_SNOOZES
+}
+
+/** Returns false when the snooze cap is reached (caller should inform the user). */
+export async function snoozeEvent(eventId: string, snoozeMinutes: number): Promise<boolean> {
   const e = await db.doseEvents.get(eventId)
-  if (!e) return
-  await db.doseEvents.put({ ...e, status: 'snoozed', snoozedUntil: Date.now() + snoozeMinutes * 60000 })
+  if (!e) return false
+  if (!snoozeAllowed(e.snoozeCount)) return false
+  await db.doseEvents.put({
+    ...e,
+    status: 'snoozed',
+    snoozedUntil: Date.now() + snoozeMinutes * 60000,
+    snoozeCount: (e.snoozeCount ?? 0) + 1,
+  })
+  return true
 }
 
 /** Sweep upcoming/due past grace -> missed. Returns count changed. */

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useToast } from '../components/Dialogs'
 import { EmptyState } from '../components/EmptyState'
 import {
   ensureEvent,
@@ -14,6 +15,7 @@ import { adherence } from '../lib/adherence'
 import { formatCountdown, formatLongDateShim, formatTimeLabel, greetingFor } from '../lib/today-utils'
 import { daysRemaining, refillState } from '../lib/inventory'
 import { nextOccurrence } from '../lib/schedule'
+import { formatReadingSummary, recentReadings } from '../db/health'
 import type { AppSettings, Medication } from '../types'
 import { ReminderCenter } from '../notifications/ReminderCenter'
 import type { useReminders } from '../notifications/useReminders'
@@ -27,12 +29,14 @@ export function TodayScreen({
   tick,
   onAdd,
   onOpenMed,
+  onOpenHealth,
 }: {
   settings: AppSettings
   reminders: RemindersApi
   tick: number
   onAdd: () => void
   onOpenMed: (id: string) => void
+  onOpenHealth: () => void
 }) {
   const [rows, setRows] = useState<Awaited<ReturnType<typeof todayTimeline>>>([])
   const [next, setNext] = useState<{ med: Medication; at: number } | null>(null)
@@ -40,6 +44,7 @@ export function TodayScreen({
   const [sos, setSos] = useState<{ med: Medication; scheduleId: string }[]>([])
   const [weekLabel, setWeekLabel] = useState('')
   const [acting, setActing] = useState<string | null>(null)
+  const toast = useToast()
 
   useEffect(() => {
     let alive = true
@@ -154,7 +159,7 @@ export function TodayScreen({
                         <button type="button" disabled={acting === key} onClick={() => void act(key, async () => { const e = r.event ?? (await ensureEvent(r.medicationId, r.scheduleId, r.at)); await markTaken(e.id) })} className="mr-btn-primary px-4 py-1.5 text-sm">
                           ✓ Taken
                         </button>
-                        <button type="button" onClick={() => void act(key, async () => { const e = r.event ?? (await ensureEvent(r.medicationId, r.scheduleId, r.at)); await snoozeEvent(e.id, settings.snoozeMinutes) })} className="rounded-full border px-3.5 py-1.5 text-sm font-semibold" style={{ borderColor: 'var(--mr-border)' }}>
+                        <button type="button" onClick={() => void act(key, async () => { const e = r.event ?? (await ensureEvent(r.medicationId, r.scheduleId, r.at)); const ok = await snoozeEvent(e.id, settings.snoozeMinutes); if (!ok) toast.show('Snooze limit reached for this dose — please record it.') })} className="rounded-full border px-3.5 py-1.5 text-sm font-semibold" style={{ borderColor: 'var(--mr-border)' }}>
                           Snooze
                         </button>
                         <button type="button" onClick={() => void act(key, async () => { const e = r.event ?? (await ensureEvent(r.medicationId, r.scheduleId, r.at)); await markSkipped(e.id) })} className="rounded-full border px-3.5 py-1.5 text-sm font-semibold" style={{ borderColor: 'var(--mr-border)' }}>
@@ -190,6 +195,16 @@ export function TodayScreen({
         </section>
       ) : null}
 
+      <section aria-labelledby="today-health" className="mr-card p-5">
+        <div className="flex items-center justify-between">
+          <h2 id="today-health" className="mr-h2">Health</h2>
+          <button type="button" onClick={onOpenHealth} className="rounded-full border px-3.5 py-1.5 text-sm font-semibold" style={{ borderColor: 'var(--mr-border)' }}>
+            Open
+          </button>
+        </div>
+        <HealthSnippet tick={tick} settings={settings} />
+      </section>
+
       <section aria-labelledby="today-attention" className="mr-card p-5">
         <h2 id="today-attention" className="mr-h2">Needs attention</h2>
         {attention.length === 0 ? (
@@ -217,12 +232,39 @@ export function TodayScreen({
         scheduling={reminders.scheduling}
         permission={reminders.permission}
         onTaken={(i) => void reminders.actTaken(i)}
-        onSnooze={(i) => void reminders.actSnooze(i)}
+        onSnooze={(i) => void reminders.actSnooze(i).then((ok) => {
+          if (!ok) toast.show('Snooze limit reached for this dose — please record it.')
+        })}
         onSkip={(i) => void reminders.actSkip(i)}
         onDismiss={(k) => reminders.dismiss(k)}
         onEnable={() => void requestPermission().then((p) => reminders.setPermission(p))}
       />
+      {toast.node}
     </div>
+  )
+}
+
+function HealthSnippet({ tick, settings }: { tick: number; settings: AppSettings }) {
+  const [items, setItems] = useState<Awaited<ReturnType<typeof recentReadings>>>([])
+  useEffect(() => {
+    let alive = true
+    recentReadings(3).then((r) => {
+      if (alive) setItems(r)
+    })
+    return () => {
+      alive = false
+    }
+  }, [tick])
+  if (items.length === 0) return <p className="mr-muted mr-body mt-1">No health readings yet.</p>
+  return (
+    <ul className="mt-2 space-y-1.5">
+      {items.map(({ tracker, reading }) => (
+        <li key={reading.id} className="flex items-baseline justify-between gap-3 text-sm">
+          <span className="font-semibold">{tracker.name}</span>
+          <span className="mr-muted text-right">{formatReadingSummary(tracker, reading, settings)}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 

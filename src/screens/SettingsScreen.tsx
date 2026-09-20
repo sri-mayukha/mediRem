@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { clearAllLocalData, db } from '../db/database'
 import { DEFAULT_SETTINGS, type useSettings } from '../db/settings'
+import { previewReminderIdentity } from '../notifications/sound'
 
 type SettingsApi = ReturnType<typeof useSettings>
 
@@ -8,6 +9,10 @@ export function SettingsScreen({ api }: { api: SettingsApi }) {
   const { settings, update, ready } = api
   const [confirmingClear, setConfirmingClear] = useState(false)
   const [cleared, setCleared] = useState(false)
+  const [previewMsg, setPreviewMsg] = useState<string | null>(null)
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null)
+  const [restoreCandidate, setRestoreCandidate] = useState<{ counts: string; data: BackupData } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   if (!ready) return <p className="mr-muted">Loading settings…</p>
 
@@ -37,6 +42,24 @@ export function SettingsScreen({ api }: { api: SettingsApi }) {
             onPick={(v) => void update({ snoozeMinutes: v as 5 | 10 | 15 })}
           />
         </Row>
+        <div>
+          <button
+            type="button"
+            className="rounded-full border px-4 py-2.5 font-semibold"
+            style={{ borderColor: 'var(--mr-border)' }}
+            onClick={() => {
+              const r = previewReminderIdentity(settings.sound, settings.vibration)
+              setPreviewMsg(
+                !settings.sound && !settings.vibration
+                  ? 'Sound and vibration are off — enable them above to preview.'
+                  : `Preview: ${r.sound ? 'chime played' : 'chime unavailable here'} · ${r.vibration ? 'vibration played' : 'vibration unavailable here'}.`,
+              )
+            }}
+          >
+            Test sound & vibration
+          </button>
+          {previewMsg ? <p role="status" className="mr-muted mt-2 text-sm">{previewMsg}</p> : null}
+        </div>
       </section>
 
       <section className="mr-card space-y-4 p-5" aria-labelledby="s-appear">
@@ -76,6 +99,9 @@ export function SettingsScreen({ api }: { api: SettingsApi }) {
           <button type="button" className="rounded-full border px-4 py-2.5 font-semibold" style={{ borderColor: 'var(--mr-border)' }} onClick={() => void exportJson()}>
             Export JSON
           </button>
+          <button type="button" className="rounded-full border px-4 py-2.5 font-semibold" style={{ borderColor: 'var(--mr-border)' }} onClick={() => void exportReadingsCsv()}>
+            Export readings CSV
+          </button>
           <button
             type="button"
             className="rounded-full border px-4 py-2.5 font-semibold"
@@ -84,7 +110,60 @@ export function SettingsScreen({ api }: { api: SettingsApi }) {
           >
             Reset settings
           </button>
+          <button
+            type="button"
+            className="rounded-full border px-4 py-2.5 font-semibold"
+            style={{ borderColor: 'var(--mr-border)' }}
+            onClick={() => fileRef.current?.click()}
+          >
+            Restore from JSON…
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            aria-label="Choose a mediRem backup file"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (!f) return
+              void readBackupFile(f).then(
+                (parsed) => {
+                  setRestoreCandidate(parsed)
+                  setRestoreMsg(null)
+                },
+                (err) => setRestoreMsg(err instanceof Error ? err.message : 'Could not read that file.'),
+              )
+            }}
+          />
         </div>
+        {restoreCandidate ? (
+          <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--mr-border)' }}>
+            <p className="font-semibold">Restore this backup?</p>
+            <p className="mr-muted mr-body mt-1">{restoreCandidate.counts} This replaces all current medications and health data on this device.</p>
+            <div className="mt-3 flex gap-2">
+              <button type="button" className="rounded-full border px-4 py-2" style={{ borderColor: 'var(--mr-border)' }} onClick={() => setRestoreCandidate(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="mr-btn-primary px-4 py-2"
+                onClick={() => void restoreBackup(restoreCandidate.data).then(
+                  (msg) => {
+                    setRestoreCandidate(null)
+                    setRestoreMsg(msg)
+                    setCleared(false)
+                  },
+                  (err) => setRestoreMsg(err instanceof Error ? err.message : 'Restore failed. Your existing data is safe.'),
+                )}
+              >
+                Restore
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {restoreMsg ? <p role="status" className="font-medium">{restoreMsg}</p> : null}
         {!confirmingClear ? (
           <button type="button" className="font-semibold text-red-800 underline dark:text-red-300" onClick={() => setConfirmingClear(true)}>
             Clear local data…
@@ -130,6 +209,111 @@ async function exportJson() {
   a.download = `medirem-export-${new Date().toISOString().slice(0, 10)}.json`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+async function exportReadingsCsv() {
+  const [trackers, readings] = await Promise.all([db.trackers.toArray(), db.readings.orderBy('timestamp').toArray()])
+  const byId = new Map(trackers.map((t) => [t.id, t]))
+  const rows: string[] = ['timestamp,tracker,values,context,notes']
+  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
+  for (const r of readings) {
+    const t = byId.get(r.trackerId)
+    rows.push(
+      [
+        new Date(r.timestamp).toISOString(),
+        esc(t?.name ?? r.trackerId),
+        esc(Object.entries(r.values).map(([k, v]) => `${k}=${v}`).join('; ')),
+        esc(r.context ?? ''),
+        esc(r.notes ?? String(r.values.notes ?? '')),
+      ].join(','),
+    )
+  }
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `medirem-readings-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+interface BackupData {
+  medications: Record<string, unknown>[]
+  schedules: Record<string, unknown>[]
+  doseEvents: Record<string, unknown>[]
+  refills: Record<string, unknown>[]
+  trackers: Record<string, unknown>[]
+  readings: Record<string, unknown>[]
+}
+
+function asArray(v: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(v)) throw new Error('This file is not a mediRem backup (expected lists of records).')
+  return v as Record<string, unknown>[]
+}
+
+async function readBackupFile(f: File): Promise<{ counts: string; data: BackupData }> {
+  const text = await f.text()
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error('Could not read that file — it is not valid JSON.')
+  }
+  if (!parsed || typeof parsed !== 'object') throw new Error('This file is not a mediRem backup.')
+  const o = parsed as Record<string, unknown>
+  const data: BackupData = {
+    medications: asArray(o.medications ?? []),
+    schedules: asArray(o.schedules ?? []),
+    doseEvents: asArray(o.doseEvents ?? []),
+    refills: asArray(o.refills ?? []),
+    trackers: asArray(o.trackers ?? []),
+    readings: asArray(o.readings ?? []),
+  }
+  for (const m of data.medications) {
+    if (typeof m.id !== 'string' || typeof m.name !== 'string') throw new Error('Backup medications look invalid — restore cancelled.')
+  }
+  const counts = `${data.medications.length} medications, ${data.readings.length} health readings, ${data.doseEvents.length} dose events.`
+  return { counts, data }
+}
+
+/** Replace local data stores with backup contents. Settings are left untouched. */
+async function restoreBackup(data: BackupData): Promise<string> {
+  // Validate ids before touching anything — never half-restore.
+  for (const [label, rows] of Object.entries(data) as [string, Record<string, unknown>[]][]) {
+    for (const r of rows) {
+      if (typeof r.id !== 'string' && label !== 'doseEvents') throw new Error(`Backup ${label} contains a record without an id.`)
+      if (label === 'doseEvents' && typeof r.id !== 'string') throw new Error('Backup dose events look invalid.')
+    }
+  }
+  await db.transaction(
+    'rw',
+    [db.medications, db.schedules, db.doseEvents, db.refills, db.trackers, db.readings],
+    async () => {
+      await Promise.all([
+        db.medications.clear(),
+        db.schedules.clear(),
+        db.doseEvents.clear(),
+        db.refills.clear(),
+        db.trackers.clear(),
+        db.readings.clear(),
+      ])
+      await Promise.all([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        db.medications.bulkAdd(data.medications as any[]),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        db.schedules.bulkAdd(data.schedules as any[]),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        db.doseEvents.bulkAdd(data.doseEvents as any[]),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        db.refills.bulkAdd(data.refills as any[]),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        db.trackers.bulkAdd(data.trackers as any[]),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        db.readings.bulkAdd(data.readings as any[]),
+      ])
+    },
+  )
+  return `Restored ${data.medications.length} medications and ${data.readings.length} health readings.`
 }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {

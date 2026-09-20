@@ -4,7 +4,7 @@
 
 let audioCtx: AudioContext | null = null
 
-/** Play the calm mediRem chime: E5 -> B4, short, soft attack. Returns false if unavailable/disabled. */
+/** Play the calm mediRem chime: E5 -> B5, soft attack, warm decay. Returns false if unavailable/disabled. */
 export function playMediRemChime(enabled: boolean): boolean {
   if (!enabled) return false
   try {
@@ -12,25 +12,35 @@ export function playMediRemChime(enabled: boolean): boolean {
     if (!Ctx) return false
     audioCtx = audioCtx ?? new Ctx()
     if (audioCtx.state === 'suspended') void audioCtx.resume()
-    const t0 = audioCtx.currentTime
+    const t0 = audioCtx.currentTime + 0.01
+    // Gentle lowpass keeps the chime warm and distinct from message/calendar pings.
+    const filter = audioCtx.createBiquadFilter()
+    filter.type = 'lowpass'
+    filter.frequency.value = 2200
+    filter.connect(audioCtx.destination)
     const notes = [659.25, 987.77] // E5, B5 — calm fifth, not an alarm
     notes.forEach((freq, i) => {
       const osc = audioCtx!.createOscillator()
       const gain = audioCtx!.createGain()
       osc.type = 'sine'
       osc.frequency.value = freq
-      const start = t0 + i * 0.22
+      const start = t0 + i * 0.24
       gain.gain.setValueAtTime(0.0001, start)
-      gain.gain.exponentialRampToValueAtTime(0.25, start + 0.03)
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.5)
-      osc.connect(gain).connect(audioCtx!.destination)
+      gain.gain.exponentialRampToValueAtTime(0.22, start + 0.04)
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.65)
+      osc.connect(gain).connect(filter)
       osc.start(start)
-      osc.stop(start + 0.55)
+      osc.stop(start + 0.7)
     })
     return true
   } catch {
     return false
   }
+}
+
+/** Preview the mediRem identity (chime + vibration) from Settings. */
+export function previewReminderIdentity(sound: boolean, vibration: boolean): { sound: boolean; vibration: boolean } {
+  return { sound: playMediRemChime(sound), vibration: vibrateMediRem(vibration) }
 }
 
 /** short pulse → pause → two short pulses. Returns false if unavailable/disabled. */

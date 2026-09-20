@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export function ConfirmationDialog({
   title,
@@ -13,6 +13,15 @@ export function ConfirmationDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    cancelRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
   return (
     <div role="alertdialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-40 grid place-items-center p-5" onClick={onCancel}>
       <div className="absolute inset-0 bg-black/35" aria-hidden="true" />
@@ -20,7 +29,7 @@ export function ConfirmationDialog({
         <h2 className="mr-h2">{title}</h2>
         <p className="mr-muted mr-body mt-2">{body}</p>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="rounded-full border px-5 py-2.5 font-semibold" style={{ borderColor: 'var(--mr-border)' }}>
+          <button ref={cancelRef} type="button" onClick={onCancel} className="rounded-full border px-5 py-2.5 font-semibold" style={{ borderColor: 'var(--mr-border)' }}>
             Cancel
           </button>
           <button type="button" onClick={onConfirm} className="mr-btn-primary px-5 py-2.5">

@@ -43,6 +43,57 @@ export function useReminders(settings: AppSettings, onChanged: () => void) {
       const byId = new Map(meds.map((m) => [m.id, m]))
       const schedules = await listAllSchedules()
 
+      // Missed-dose catch-up on app open: surface doses that lapsed while away.
+      // Neutral copy, pushed once (tracked in kv), so reopening never spams.
+      try {
+        const lastRow = await db.kv.get('reminders-catchup')
+        const last = typeof lastRow?.value === 'number' ? (lastRow.value as number) : now - 24 * 3600000
+        const newlyMissed = await db.doseEvents.where('status').equals('missed').toArray()
+        const fresh = newlyMissed
+          .filter((e) => e.scheduledAt > last && e.scheduledAt > now - 7 * 86400000)
+          .sort((a, b) => b.scheduledAt - a.scheduledAt)
+          .slice(0, 5)
+        for (const e of fresh) {
+          const m = byId.get(e.medicationId)
+          if (!m) continue
+          const key = `missed:${e.id}`
+          if (notifiedRef.current.has(key)) continue
+          notifiedRef.current.add(key)
+          push({
+            key, kind: 'due', title: 'mediRem · Missed dose',
+            body: `${m.name} · ${formatTimeLabel(e.scheduledAt)}\nNo pressure — you can still record it below.`,
+            at: e.scheduledAt, medicationId: e.medicationId, eventId: e.id, medName: m.name,
+          })
+        }
+        await db.kv.put({ key: 'reminders-catchup', value: now })
+      } catch {
+        // Catch-up is best-effort; scheduling continues.
+      }
+
+      // Re-alert when a snoozed dose comes due again (capped by snoozeCount in snoozeEvent).
+      try {
+        const snoozed = await db.doseEvents.where('status').equals('snoozed').toArray()
+        for (const e of snoozed) {
+          if (!e.snoozedUntil || now < e.snoozedUntil || now >= e.snoozedUntil + 60000) continue
+          const key = `snooze:${e.id}:${e.snoozedUntil}`
+          if (notifiedRef.current.has(key)) continue
+          notifiedRef.current.add(key)
+          const m = byId.get(e.medicationId)
+          if (!m) continue
+          const title = 'mediRem · Snoozed reminder'
+          const body = `${m.name}\n${m.doseAmount} ${m.doseUnit}\n${formatTimeLabel(e.scheduledAt)}`
+          const shown = await systemNotify(title, body, key)
+          setScheduling(shown === 'system' ? 'ok' : 'in-app-only')
+          push({ key, kind: 'due', title, body, at: now, medicationId: e.medicationId, eventId: e.id, medName: m.name })
+          if (shown === 'system') {
+            playMediRemChime(settings.sound)
+            vibrateMediRem(settings.vibration)
+          }
+        }
+      } catch {
+        // Snooze re-alert is best-effort.
+      }
+
       // Ensure today's + tomorrow's events exist in DB
       const today = new Date()
       const tomorrow = new Date(today)
@@ -125,10 +176,15 @@ export function useReminders(settings: AppSettings, onChanged: () => void) {
     setCenter((cur) => cur.filter((c) => c.key !== item.key))
     onChanged()
   }
-  const actSnooze = async (item: CenterItem) => {
-    if (item.eventId) await snoozeEvent(item.eventId, settings.snoozeMinutes)
+  const actSnooze = async (item: CenterItem): Promise<boolean> => {
+    if (!item.eventId) {
+      dismiss(item.key)
+      return true
+    }
+    const ok = await snoozeEvent(item.eventId, settings.snoozeMinutes)
     setCenter((cur) => cur.filter((c) => c.key !== item.key))
     onChanged()
+    return ok
   }
   const dismiss = (key: string) => setCenter((cur) => cur.filter((c) => c.key !== key))
 

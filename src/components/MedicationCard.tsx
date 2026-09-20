@@ -49,7 +49,7 @@ export function MedicationCard({
       <div className="mr-muted mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {med.currentQty != null ? <span>{med.currentQty} left</span> : null}
         {days != null ? <span>{days} days remaining</span> : null}
-        {refill?.due ? <span className="font-semibold" style={{ color: 'var(--color-amber-soft)' }}>⚠ Refill soon</span> : null}
+        {refill?.due ? <span className="font-semibold" style={{ color: 'var(--mr-warn-text)' }}>⚠ Refill soon</span> : null}
       </div>
     </button>
   )

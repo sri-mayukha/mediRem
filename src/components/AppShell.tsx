@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { TabId } from '../types'
+import type { TabId, TrackerKey } from '../types'
 import { BottomNavigation } from './BottomNavigation'
 import { QuickAddSheet } from './QuickAddSheet'
 
@@ -10,6 +10,7 @@ export function AppShell({
   onAdd,
   onAddClose,
   onAddMedication,
+  onAddReading,
   children,
   headerAction,
 }: {
@@ -19,11 +20,13 @@ export function AppShell({
   onAdd: () => void
   onAddClose: () => void
   onAddMedication: () => void
+  onAddReading: (key: TrackerKey) => void
   children: ReactNode
   headerAction?: ReactNode
 }) {
   return (
     <div className="min-h-dvh" style={{ background: 'var(--mr-bg)' }}>
+      <a href="#main-content" className="mr-skip">Skip to content</a>
       <header className="mx-auto flex max-w-xl items-center justify-between px-5 pt-6">
         <div className="flex items-center gap-2.5">
           <img src="/favicon.svg" alt="" width={32} height={32} className="rounded-lg" />
@@ -34,8 +37,8 @@ export function AppShell({
         </div>
         {headerAction}
       </header>
-      <main className="mx-auto max-w-xl px-5 pb-32 pt-4">{children}</main>
-      <QuickAddSheet open={addOpen} onClose={onAddClose} onAddMedication={onAddMedication} />
+      <main id="main-content" className="mx-auto max-w-xl px-5 pb-32 pt-4">{children}</main>
+      <QuickAddSheet open={addOpen} onClose={onAddClose} onAddMedication={onAddMedication} onAddReading={onAddReading} />
       <BottomNavigation tab={tab} onChange={onTab} onAdd={onAdd} />
     </div>
   )

@@ -24,6 +24,8 @@
   --mr-border: #E9E4DA;
   --mr-shadow: 0 1px 2px rgb(43 43 43 / 0.05), 0 8px 24px -12px rgb(43 43 43 / 0.12);
   --mr-radius: 16px;
+  /* Warning text color meets AA on light surfaces; --color-amber-soft stays decorative only. */
+  --mr-warn-text: #7A5A10;
 }
 
 [data-theme="dark"] {
@@ -36,6 +38,7 @@
   --mr-secondary: #9B98BC;
   --mr-border: #3D4541;
   --mr-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.5);
+  --mr-warn-text: #E4C56F;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -48,6 +51,7 @@
     --mr-primary-deep: #7D9B87;
     --mr-secondary: #9B98BC;
     --mr-border: #3D4541;
+    --mr-warn-text: #E4C56F;
   }
 }
 
@@ -100,3 +104,12 @@ body {
   box-shadow: var(--mr-shadow);
   display: grid; place-items: center;
 }
+
+/* Skip link: visible on keyboard focus only */
+.mr-skip {
+  position: absolute; left: 12px; top: -48px; z-index: 50;
+  background: var(--mr-primary-deep); color: #fff;
+  border-radius: 999px; padding: 10px 18px; font-weight: 600;
+  transition: top 0.15s ease;
+}
+.mr-skip:focus-visible { top: 12px; }
